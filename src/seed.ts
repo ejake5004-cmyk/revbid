@@ -70,7 +70,7 @@ const CARS: Car[] = [
   },
   {
     seller: "noor_na", year: 1999, make: "Honda", model: "Civic Si EM1", subtitle: "K24 swapped EM1, Electron Blue, 240 whp",
-    category: "modified", location: "San Jose, CA", mileage: 211_000, engine: "K24A2 swap", transmission: "6-speed manual",
+    category: "jdm", location: "San Jose, CA", mileage: 211_000, engine: "K24A2 swap", transmission: "6-speed manual",
     drivetrain: "FWD", body: "Coupe", exterior: "Electron Blue Pearl", interior: "Black", fuel: "Gasoline",
     story: "Built over four years with a clean K24 swap from a TSX. Tuned on Hondata KPro and makes 240 whp. It's a fun street car with a little noise.",
     mods: "K24A2 engine and 6-speed\nHondata KPro tune\nBC coilovers\nSpoon calipers\nKonig wheels",
@@ -89,7 +89,7 @@ const CARS: Car[] = [
   },
   {
     seller: "ivy_m3", year: 2005, make: "Honda", model: "S2000 AP2", subtitle: "One-owner AP2, Silverstone, 71k miles",
-    category: "performance", location: "Tempe, AZ", mileage: 71_000, engine: "2.2L F22C1 four", transmission: "6-speed manual",
+    category: "jdm", location: "Tempe, AZ", mileage: 71_000, engine: "2.2L F22C1 four", transmission: "6-speed manual",
     drivetrain: "RWD", body: "Convertible", exterior: "Silverstone Metallic", interior: "Black leather", fuel: "Gasoline",
     story: "One owner from new. The top is the original glass-window soft top and it doesn't leak. Every service was done at the dealer and the records come with it.",
     mods: "Stock", issues: "Driver seat outer bolster worn\nSmall door ding on the passenger side",

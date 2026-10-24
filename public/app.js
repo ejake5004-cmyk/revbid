@@ -7,6 +7,7 @@ let pageEvent = null; // live event handler for the current page
 let pageToken = 0;
 
 const CATS = {
+  jdm: { name: "JDM", blurb: "Japan's best, imported and domestic", ico: "🗾" },
   modified: { name: "Modified", blurb: "Tuned, built, and sorted", ico: "🔧" },
   project: { name: "Project", blurb: "Needs you to finish it", ico: "🛠" },
   performance: { name: "Performance", blurb: "Fast from the factory", ico: "⚡" },
@@ -183,7 +184,7 @@ async function home() {
   app.innerHTML = `<div class="wrap">
     ${f ? `<a class="hero" href="#/auction/${f.id}">
       <div class="art">${pic(f, 0, true)}</div>
-      <div class="tag-line"><h1>Auctions for cars worth looking at.</h1>
+      <div class="tag-line"><h1>Auctions for cars worth looking at.</h1><p class="hero-sub">JDM, modified, project and classic cars. Every car is reviewed by a real person, and every story is told honestly.</p>
         <div class="row"><span class="btn primary" onclick="event.preventDefault();location.hash='#/browse'">Browse auctions</span>
         <span class="btn" onclick="event.preventDefault();location.hash='#/sell'">Sell a car</span></div></div>
       <div class="bottom" data-card-hero="${f.id}">${heroBottom(f)}</div>
@@ -196,7 +197,7 @@ async function home() {
       <div class="cats">${cats.categories.map((c) => `<a class="cat" href="#/browse?category=${c.id}"><span class="ico">${CATS[c.id].ico}</span><b>${CATS[c.id].name}</b><span class="small muted">${CATS[c.id].blurb}<br>${c.live} live</span></a>`).join("")}</div></section>
     <section class="section"><div class="section-head"><div><h2>Just listed</h2><p>Fresh this week.</p></div><a class="link" href="#/browse?sort=newest">See all ›</a></div>${grid(fresh.listings)}</section>
     <section class="section"><div class="section-head"><div><h2>No reserve</h2><p>They sell to the high bidder, whatever that is.</p></div><a class="link" href="#/browse?noReserve=1">See all ›</a></div>${grid(noRes.listings, "No no-reserve auctions live right now.")}</section>
-    <div class="cta"><div><h2>Got something worth looking at?</h2><p>Free to list. A real person reviews it, then it runs in front of buyers nationwide. You pay a 5% success fee only when it sells, and nothing if it doesn't.</p></div>
+    <div class="cta"><div><h2>Got something worth looking at?</h2><p>We'll help you present it right, with guidance on photos and the write-up, and put it in front of serious enthusiast buyers nationwide. Free to list. One simple fee of 5% only if it sells, and nothing if it doesn't.</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" href="#/sell">Sell a car</a><a class="btn lg" href="#/how">How it works</a></div></div>
   </div>`;
   pageEvent = (ev) => {
@@ -621,7 +622,7 @@ function sell() {
     `<div class="field"><label for="s-${name}">${label}</label><select id="s-${name}" name="${name}">${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></div>`;
 
   app.innerHTML = `<div class="wrap"><div class="form-page">
-    <h1>Sell a car</h1><p class="muted">Tell buyers the truth, good and bad. Honest listings get more bids. We review every listing before it goes live, usually within a day.</p>
+    <h1>Sell a car</h1><p class="muted">Tell buyers the truth, good and bad. Enthusiasts trust honest listings, and project cars with clear disclosures are welcome here. A real person at RevBid reviews every listing, usually within a day, and will reach out if the photos or write-up could be stronger. We accept cars from any US state with a clear title.</p>
     <form id="sell" novalidate>
       <div class="fieldset"><h3>The car</h3><div class="fields">
         ${field("year", "Year", 'type="number" min="1900" max="2027" required placeholder="2013"')}
@@ -732,12 +733,19 @@ async function admin() {
 
 function how() {
   app.innerHTML = `<div class="wrap" style="max-width:960px"><h1 style="margin-top:32px">How RevBid works</h1>
-    <p class="muted" style="font-size:18px">Auctions for enthusiast cars, run in the open. You can see every bid and every question, and the seller answers in public.</p>
+    <p class="muted" style="font-size:18px">RevBid is an online auction marketplace for car enthusiasts: JDM imports, modified cars, project cars, classics and the odd ones in between. Sellers submit their cars, our team reviews them, and approved cars go live with photos, specs, the full story and a timed auction. You can see every bid and every question, and the seller answers in public.</p>
     <div class="steps">
-      <div class="step"><div class="n">1</div><h3>List it free</h3><p class="muted">Describe the car honestly, with photos and every known issue. A person reviews each listing before it goes live.</p></div>
+      <div class="step"><div class="n">1</div><h3>Submit your car</h3><p class="muted">Describe it honestly, with photos and every known issue. A real person reviews each listing and helps you present it well before it goes live.</p></div>
       <div class="step"><div class="n">2</div><h3>Bid live</h3><p class="muted">Verified bidders bid in the open. Every bid shows up instantly for everyone watching. Bids in the last 2 minutes add 2 minutes, so nobody gets sniped.</p></div>
       <div class="step"><div class="n">3</div><h3>Settle directly</h3><p class="muted">When it ends, the winner and seller get each other's contact details and arrange payment, title and pickup directly. RevBid never holds money or titles.</p></div>
     </div>
+    <div class="fieldset"><h3>Why RevBid</h3><ul class="dots" style="margin-top:10px">
+      <li><b>Project cars get respect.</b> The honest, messy, cool stuff is welcome here, with every flaw disclosed so bidders know exactly what they're getting.</li>
+      <li><b>Selling is personal.</b> You get a real person who helps with your photos and write-up, not just a form.</li>
+      <li><b>Simple pricing.</b> One fee, only if it sells. No listing fees, no buyer's premium, no surprises.</li>
+      <li><b>Every car has a story.</b> Listings tell how the car was built, driven and kept, and the comments let buyers ask the seller anything.</li>
+      <li><b>Nationwide.</b> We're based in Country Homes, Washington, and accept cars from any US state with a clear title.</li>
+    </ul><p class="small muted" style="margin:12px 0 0">We can't promise any car will sell or what it will sell for. We promise a great presentation and a room full of serious enthusiast buyers.</p></div>
     <div class="fieldset"><h3>The rules</h3><ul class="dots" style="margin-top:10px">
       <li>Bids are binding offers to buy the car as described.</li>
       <li>Each bid must beat the last by at least the increment: $25 under $1,000, $50 under $5,000, $100 under $25,000, $250 under $100,000, then $500.</li>

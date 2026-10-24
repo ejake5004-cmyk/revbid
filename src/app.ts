@@ -21,7 +21,7 @@ const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_BODY = 30 * 1024 * 1024;
 const MAX_PHOTOS = 12;
 
-export const CATEGORIES = ["modified", "project", "performance", "classic", "unique"];
+export const CATEGORIES = ["jdm", "modified", "project", "classic", "performance", "unique"];
 export const DURATIONS: Record<string, number> = {
   "10m": 10 * 60 * 1000, // short demo auctions, handy for trying the close
   "1d": 24 * 60 * 60 * 1000,

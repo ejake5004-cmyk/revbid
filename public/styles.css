@@ -69,6 +69,7 @@ header.top .wrap { display: flex; align-items: center; gap: 16px; height: 60px; 
 .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10, 14, 12, 0.55) 0%, rgba(10, 14, 12, 0) 35%, rgba(10, 14, 12, 0.2) 55%, rgba(10, 14, 12, 0.92) 100%); }
 .hero .tag-line { position: absolute; top: 28px; left: 28px; z-index: 2; max-width: 460px; }
 .hero .tag-line h1 { font-size: clamp(36px, 6vw, 60px); }
+.hero .tag-line .hero-sub { color: #e4e1d8; margin: 12px 0 0; max-width: 420px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); }
 .hero .tag-line .row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
 .hero .bottom { position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; width: 100%; padding: 28px; flex-wrap: wrap; }
 .hero .bottom h2 { font-size: clamp(30px, 4.5vw, 46px); }
