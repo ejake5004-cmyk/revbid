@@ -6,6 +6,8 @@ import { join, extname, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb, tx, loadAuction, type DB, type ListingRow } from "./db.ts";
 import { normalizeUsPhone, verifierFromEnv, type PhoneVerifier } from "./phone.ts";
+import { mailerFromEnv, type Mailer } from "./email.ts";
+import { DISCLOSURES, ANSWERS } from "../public/disclosures.js";
 import {
   placeBid,
   closeAuction,
@@ -58,6 +60,7 @@ interface User {
   verified: number;
   is_admin: number;
   created_at: number;
+  email_alerts: number;
 }
 
 interface Ctx {
@@ -76,6 +79,10 @@ export interface AppOptions {
   closeEveryMs?: number;
   // null means no automatic verification: the admin verifies people by hand.
   phoneVerifier?: PhoneVerifier | null;
+  // null means no email alerts.
+  mailer?: Mailer | null;
+  // Public address of the site, for links in emails and share previews.
+  siteUrl?: string;
 }
 
 export function hashPassword(pw: string): string {
@@ -94,6 +101,8 @@ export function createApp(opts: AppOptions) {
   const now = opts.now ?? Date.now;
   const verifier = opts.phoneVerifier !== undefined ? opts.phoneVerifier : verifierFromEnv(process.env);
   const codeSends = new Map<number, number[]>(); // user id → recent send times, to cap texts per hour
+  const mailer = opts.mailer !== undefined ? opts.mailer : mailerFromEnv(process.env);
+  const siteUrl = (opts.siteUrl ?? process.env.SITE_URL ?? "https://revbid.onrender.com").replace(/\/$/, "");
   mkdirSync(opts.uploadsDir, { recursive: true });
 
   // ---- live events (server-sent events) ----
@@ -108,9 +117,20 @@ export function createApp(opts: AppOptions) {
 
   // ---- helpers ----
   const userById = (id: number) =>
-    db.prepare("SELECT id, username, email, location, verified, is_admin, created_at FROM users WHERE id = ?").get(id) as
+    db.prepare("SELECT id, username, email, location, verified, is_admin, created_at, email_alerts FROM users WHERE id = ?").get(id) as
       | User
       | undefined;
+
+  // Emails someone who has alerts on. Never holds up the request, and a failed send is only logged.
+  function notify(userId: number, subject: string, lines: string[], listingId?: number) {
+    const u = userById(userId);
+    if (!mailer || !u || !u.email_alerts) return;
+    const link = listingId ? `\n\n${siteUrl}/#/auction/${listingId}` : "";
+    const text = `Hi ${u.username},\n\n${lines.join("\n\n")}${link}\n\nRevBid\nTurn these emails off any time on your account page: ${siteUrl}/#/account`;
+    mailer.send(u.email, subject, text).catch((err) => console.error("Email failed", (err as Error).message));
+  }
+  const carName = (row: ListingRow) => `${row.year} ${row.make} ${row.model}`;
+  const dollars = (n: number) => "$" + n.toLocaleString("en-US");
 
   function getListing(id: number): ListingRow {
     const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as ListingRow | undefined;
@@ -206,6 +226,7 @@ export function createApp(opts: AppOptions) {
       mods: row.mods,
       issues: row.issues,
       service: row.service,
+      disclosures: JSON.parse((row.disclosures as string) || "{}"),
       views: row.views,
       extensionsUsed: row.extensions_used,
       rejectReason: isSeller || viewer?.is_admin ? row.reject_reason : undefined,
@@ -244,10 +265,33 @@ export function createApp(opts: AppOptions) {
         else db.prepare("UPDATE listings SET status = 'unsold' WHERE id = ?").run(row.id);
         return getListing(row.id);
       });
-      if (closed) broadcast({ type: "closed", listing: summary(closed) });
+      if (closed) {
+        broadcast({ type: "closed", listing: summary(closed) });
+        sendResultEmails(closed);
+      }
     }
   }
   const closer = setInterval(closeDue, opts.closeEveryMs ?? 1000);
+
+  function sendResultEmails(row: ListingRow) {
+    const car = carName(row);
+    if (row.status === "sold") {
+      const price = row.final_price as number;
+      notify(row.winner_id as number, `You won the ${car}`, [
+        `You won the ${car} for ${dollars(price)}.`,
+        "Open the listing to see the seller's contact details, then arrange payment, title and pickup with them directly. RevBid never holds money or titles.",
+      ], row.id);
+      notify(row.seller_id, `Your ${car} sold for ${dollars(price)}`, [
+        `Congratulations, your ${car} sold for ${dollars(price)}.`,
+        "Open the listing to see the buyer's contact details and arrange payment, title and pickup with them directly.",
+      ], row.id);
+    } else if (row.status === "unsold") {
+      notify(row.seller_id, `Your ${car} auction ended`, [
+        `Your ${car} auction ended without meeting the reserve, so the car didn't sell and there's no fee.`,
+        "Reply to this email if you'd like help relisting it.",
+      ], row.id);
+    }
+  }
 
   // ---- routes ----
   type Handler = (c: Ctx) => unknown;
@@ -285,6 +329,7 @@ export function createApp(opts: AppOptions) {
     location: u.location,
     verified: !!u.verified,
     isAdmin: !!u.is_admin,
+    emailAlerts: !!u.email_alerts,
   });
 
   route("GET", "/api/me", (c) => ({
@@ -293,7 +338,14 @@ export function createApp(opts: AppOptions) {
     contactEmail: process.env.CONTACT_EMAIL ?? "",
     verifyMode: verifier?.mode ?? "manual",
     demo: process.env.DEMO_DATA !== "off",
+    emailOn: !!mailer,
   }));
+
+  route("POST", "/api/account/settings", (c) => {
+    const u = requireUser(c);
+    db.prepare("UPDATE users SET email_alerts = ? WHERE id = ?").run(c.body.emailAlerts ? 1 : 0, u.id);
+    return { user: me(userById(u.id)!) };
+  });
 
   route("POST", "/api/signup", (c) => {
     const username = str(c.body.username, 30);
@@ -397,6 +449,7 @@ export function createApp(opts: AppOptions) {
     const status = q.get("status") ?? "live";
     if (status === "live") where.push("status = 'live'");
     else if (status === "ended") where.push("status IN ('sold','unsold')");
+    else if (status === "sold") where.push("status = 'sold'");
     if (q.get("category")) {
       where.push("category = ?");
       args.push(q.get("category")!);
@@ -497,6 +550,12 @@ export function createApp(opts: AppOptions) {
     if (buyNow !== null && buyNow <= Math.max(startingBid, reserve ?? 0))
       throw new HttpError(400, "Buy now has to be above the starting bid and the reserve.");
     const mileage = b.mileage === "" || b.mileage === undefined ? null : money(b.mileage, "Mileage");
+    const disclosures: Record<string, string> = {};
+    for (const d of DISCLOSURES) {
+      const a = b.disclosures?.[d.key];
+      if (!ANSWERS.includes(a)) throw new HttpError(400, `Answer every question in the disclosure checklist ("${d.q}").`);
+      disclosures[d.key] = a;
+    }
 
     const photos: string[] = Array.isArray(b.photos) ? b.photos.slice(0, MAX_PHOTOS) : [];
     const listingId = Number(
@@ -504,15 +563,15 @@ export function createApp(opts: AppOptions) {
         .prepare(
           `INSERT INTO listings (seller_id, year, make, model, subtitle, category, location, vin, mileage, title_status, runs,
            engine, transmission, drivetrain, body, exterior, interior, fuel, story, mods, issues, service,
-           starting_bid, reserve, buy_now, duration_ms, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           starting_bid, reserve, buy_now, duration_ms, created_at, disclosures)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           u.id, year, make, model, str(b.subtitle, 120), category, location, str(b.vin, 17).toUpperCase(), mileage,
           str(b.titleStatus, 30) || "Clean", str(b.runs, 40) || "Runs and drives", str(b.engine, 60),
           str(b.transmission, 40), str(b.drivetrain, 20), str(b.body, 30), str(b.exterior, 40), str(b.interior, 40),
           str(b.fuel, 20), story, str(b.mods, 3000), issues, str(b.service, 2000), startingBid, reserve, buyNow,
-          duration, now(),
+          duration, now(), JSON.stringify(disclosures),
         ).lastInsertRowid,
     );
     const saved = photos.map((data, i) => {
@@ -530,10 +589,13 @@ export function createApp(opts: AppOptions) {
     const u = requireUser(c);
     const id = Number(c.params[0]);
     const amount = Number(c.body.amount);
+    let outbid: number | null = null; // who was the high bidder before this bid
     const result = tx(db, () => {
       const row = getListing(id);
       if (row.status !== "live") return { ok: false as const, reason: "auction_not_live" as const, minimumNextBid: 0 };
-      const r = placeBid(loadAuction(db, row), { id: String(u.id), verified: !!u.verified }, amount, now());
+      const before = loadAuction(db, row);
+      outbid = before.bids.length ? Number(highBid(before)!.bidderId) : null;
+      const r = placeBid(before, { id: String(u.id), verified: !!u.verified }, amount, now());
       if (!r.ok) return r;
       const bid = highBid(r.auction)!;
       db.prepare("INSERT INTO bids (listing_id, bidder_id, amount, at) VALUES (?, ?, ?, ?)").run(id, u.id, bid.amount, bid.at);
@@ -555,7 +617,15 @@ export function createApp(opts: AppOptions) {
       extended: result.extended,
       boughtNow: result.boughtNow,
     });
-    if (result.boughtNow) broadcast({ type: "closed", listing: summary(listing) });
+    if (result.boughtNow) {
+      broadcast({ type: "closed", listing: summary(listing) });
+      sendResultEmails(listing);
+    } else if (outbid !== null && outbid !== u.id) {
+      notify(outbid, `You've been outbid on the ${carName(listing)}`, [
+        `Someone bid ${dollars(amountPlaced)} on the ${carName(listing)}, so you're no longer the high bidder.`,
+        `The auction ends ${new Date(listing.ends_at as number).toUTCString()}. Bid again here:`,
+      ], id);
+    }
     return { listing: detail(listing, u), extended: result.extended, boughtNow: result.boughtNow };
   });
 
@@ -609,6 +679,18 @@ export function createApp(opts: AppOptions) {
       row.id, u.id, parent, body, now(),
     );
     broadcast({ type: "comment", listingId: row.id });
+    const quote = body.length > 500 ? body.slice(0, 500) + "…" : body;
+    if (u.id !== row.seller_id)
+      notify(row.seller_id, `New ${parent ? "comment" : "question"} on your ${carName(row)}`, [
+        `${u.username} wrote on your ${carName(row)}:`, `"${quote}"`, "Quick, honest answers build trust with bidders. Reply here:",
+      ], row.id);
+    if (parent) {
+      const asker = (db.prepare("SELECT user_id FROM comments WHERE id = ?").get(parent) as { user_id: number }).user_id;
+      if (asker !== u.id && asker !== row.seller_id)
+        notify(asker, `${u.id === row.seller_id ? "The seller" : u.username} replied about the ${carName(row)}`, [
+          `${u.username}${u.id === row.seller_id ? " (the seller)" : ""} replied to your comment:`, `"${quote}"`,
+        ], row.id);
+    }
     return { listing: detail(getListing(row.id), u) };
   });
 
@@ -716,6 +798,31 @@ export function createApp(opts: AppOptions) {
     return true;
   }
 
+  // Share links (/a/123) carry the car's title and photo for Facebook, Reddit and text previews,
+  // which can't see inside the #/ part of a normal link, then send people on to the listing.
+  function sharePage(res: ServerResponse, id: number) {
+    const row = db.prepare("SELECT * FROM listings WHERE id = ? AND status IN ('live','sold','unsold')").get(id) as ListingRow | undefined;
+    const target = row ? `/#/auction/${id}` : "/";
+    const h = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+    let tags = "";
+    if (row) {
+      const s = summary(row);
+      const price = s.status === "sold" ? `Sold for ${dollars(s.finalPrice as number)}` : s.currentBid != null ? `Bid to ${dollars(s.currentBid)}` : `Starting at ${dollars(s.startingBid)}`;
+      const desc = [s.subtitle, price, s.hasReserve ? "" : "No reserve", s.location].filter(Boolean).join(" · ");
+      tags = `<meta property="og:title" content="${h(carName(row))} on RevBid">
+<meta property="og:description" content="${h(desc)}">
+<meta property="og:url" content="${h(`${siteUrl}/a/${id}`)}">
+<meta property="og:type" content="website">
+${s.photos[0] ? `<meta property="og:image" content="${h(siteUrl + s.photos[0])}">` : ""}
+<meta name="twitter:card" content="summary_large_image">`;
+    }
+    res.writeHead(row ? 200 : 404, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><html><head><meta charset="utf-8"><title>${row ? h(carName(row)) + " | RevBid" : "RevBid"}</title>
+${tags}
+<meta http-equiv="refresh" content="0; url=${target}"></head><body><a href="${target}">Open on RevBid</a>
+<script>location.replace(${JSON.stringify(target)})</script></body></html>`);
+  }
+
   function json(res: ServerResponse, status: number, data: unknown) {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     res.end(JSON.stringify(data));
@@ -743,6 +850,8 @@ export function createApp(opts: AppOptions) {
         }
         throw new HttpError(404, "Not found.");
       }
+      const share = /^\/a\/(\d+)$/.exec(url.pathname);
+      if (share) return sharePage(res, Number(share[1]));
       if (url.pathname.startsWith("/uploads/") && sendFile(res, opts.uploadsDir, url.pathname.slice(9))) return;
       if (url.pathname !== "/" && sendFile(res, PUBLIC, url.pathname)) return;
       sendFile(res, PUBLIC, "index.html");

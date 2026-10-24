@@ -101,6 +101,10 @@ export function openDb(file: string): DB {
   const userCols = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
   if (!userCols.includes("terms_accepted_at")) db.exec("ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER");
   if (!userCols.includes("phone")) db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+  if (!userCols.includes("email_alerts")) db.exec("ALTER TABLE users ADD COLUMN email_alerts INTEGER NOT NULL DEFAULT 1");
+  const listingCols = (db.prepare("PRAGMA table_info(listings)").all() as { name: string }[]).map((c) => c.name);
+  // Seller's yes/no answers to the disclosure checklist, as JSON: {"rust": "no", ...}.
+  if (!listingCols.includes("disclosures")) db.exec("ALTER TABLE listings ADD COLUMN disclosures TEXT NOT NULL DEFAULT '{}'");
   // One verified account per phone number.
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_phone ON users(phone) WHERE phone IS NOT NULL");
   return db;

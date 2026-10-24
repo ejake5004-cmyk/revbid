@@ -253,3 +253,29 @@ footer .cols a:hover { color: var(--c); }
 .combo-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 30; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--s2); border: 1px solid var(--b); border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); max-height: 280px; overflow-y: auto; }
 .combo-list li { padding: 9px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
 .combo-list li.on, .combo-list li:hover { background: rgba(244, 119, 36, 0.18); }
+
+/* seller disclosures */
+.disclosures { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.disc { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: var(--s); border: 1px solid var(--b); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.disc b { white-space: nowrap; }
+.disc.ok b { color: var(--g); }
+.disc.maybe b { color: var(--y); }
+.disc.flag { border-color: rgba(233, 196, 106, 0.45); background: rgba(233, 196, 106, 0.07); }
+.disc.flag b { color: var(--y); }
+.disc-form { display: grid; gap: 8px; margin-top: 12px; }
+.disc-q { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--b); }
+.seg { display: inline-flex; border: 1px solid var(--b); border-radius: 999px; overflow: hidden; }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 6px 14px; font-size: 13px; }
+.seg label + label span { border-left: 1px solid var(--b); }
+.seg input:checked + span { background: var(--o); color: #170e06; font-weight: 600; }
+.seg input:focus-visible + span { outline: 2px solid var(--o2); outline-offset: -2px; }
+
+/* photo guide */
+.shot-list { margin: 12px 0 16px; padding-left: 22px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 20px; }
+.shot-list li b { display: block; font-size: 14px; }
+
+/* share buttons */
+.share { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.share .chip { padding: 5px 12px; }

@@ -1,12 +1,13 @@
 // RevBid front end: a small hash-routed single page app with no build step.
 import { termsHtml, privacyHtml, LEGAL_UPDATED } from "./legal.js";
 import { MAKES, MODELS, rank } from "./cars.js";
+import { DISCLOSURES } from "./disclosures.js";
 
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 let me = null;
 let clockOffset = 0; // server time minus browser time
-let site = { contactEmail: "", demo: true, verifyMode: "demo" };
+let site = { contactEmail: "", demo: true, verifyMode: "demo", emailOn: false };
 let pageEvent = null; // live event handler for the current page
 let pageToken = 0;
 
@@ -161,6 +162,7 @@ function renderNav() {
   nav.innerHTML = `
     <a href="#/browse" class="hide-sm">Auctions</a>
     <a href="#/browse?sort=ending" class="hide-sm">Ending soon</a>
+    <a href="#/results" class="hide-sm">Results</a>
     ${me?.isAdmin ? `<a href="#/admin" class="hide-sm">Admin</a>` : ""}
     <a href="#/sell" class="btn primary" style="padding:7px 14px">Sell a car</a>
     ${me
@@ -280,10 +282,12 @@ async function auction(id) {
         <div class="muted" style="font-size:18px;margin-top:6px">${esc(L.subtitle)}</div>
         <div class="meta-line"><span>📍 ${esc(L.location)}</span><span>👁 ${L.views.toLocaleString()} view${L.views === 1 ? "" : "s"}</span><span id="watchers">♡ ${L.watchers} watching</span></div>
         <div class="tags"><span class="pill">${CATS[L.category].name}</span>${L.hasReserve ? "" : `<span class="pill o">No reserve</span>`}</div>
+        ${L.status === "pending" || L.status === "rejected" ? "" : shareRow(L)}
         <div class="panel specs">${facts(L).map(([k, v]) => `<div><span class="label">${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
         <div class="block"><h3>The story</h3><div class="prose">${esc(L.story)}</div></div>
         <div class="block"><h3>Modifications</h3><ul class="dots">${(lines(L.mods).length ? lines(L.mods) : ["Stock"]).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
-        <div class="block issues"><h3>⚠ Known issues and disclosures</h3><ul class="dots">${lines(L.issues).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+        ${disclosureBox(L)}
+        <div class="block issues"><h3>⚠ Known issues</h3><ul class="dots">${lines(L.issues).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
           ${L.service ? `<p class="small" style="margin:12px 0 0"><b>Service history:</b> <span class="muted">${esc(L.service)}</span></p>` : ""}</div>
         <div class="block"><h3>Bid history <span class="muted small" id="bid-count"></span></h3><div id="history"></div></div>
         <div class="block"><h3>Comments and questions</h3><div id="comments"></div></div>
@@ -476,6 +480,7 @@ async function auction(id) {
   drawGallery();
   drawSeller();
   drawAll();
+  wireShare(L);
 
   pageEvent = (ev) => {
     const lid = ev.listing?.id ?? ev.listingId;
@@ -490,6 +495,73 @@ async function auction(id) {
       refresh(true).then(() => toast(L.status === "sold" ? `Sold for ${usd(L.finalPrice)}!` : "Auction over. The reserve wasn't met.", "o"));
     } else refresh();
   };
+}
+
+// The seller's yes/no answers, with anything a buyer should look at twice marked.
+function disclosureBox(l) {
+  const answered = DISCLOSURES.filter((d) => l.disclosures?.[d.key]);
+  if (!answered.length) return "";
+  const word = { yes: "Yes", no: "No", unsure: "Not sure" };
+  return `<div class="block"><h3>Seller disclosures</h3><p class="small muted" style="margin:0 0 10px">The seller answered each of these before listing.</p>
+    <div class="disclosures">${answered.map((d) => {
+      const a = l.disclosures[d.key];
+      const cls = d.good === null ? "" : a === d.good ? "ok" : a === "unsure" ? "maybe" : "flag";
+      return `<div class="disc ${cls}"><span>${esc(d.q)}</span><b>${word[a]}</b></div>`;
+    }).join("")}</div></div>`;
+}
+
+// Share links go through /a/<id> so Facebook, Reddit and texts show the car's photo and price.
+function shareRow(l) {
+  return `<div class="share" id="share"><span class="small muted">Share</span>
+    <button class="chip" data-share="native" hidden>Share…</button>
+    <a class="chip" data-share="facebook" target="_blank" rel="noopener">Facebook</a>
+    <a class="chip" data-share="reddit" target="_blank" rel="noopener">Reddit</a>
+    <a class="chip" data-share="x" target="_blank" rel="noopener">X</a>
+    <a class="chip" data-share="sms">Text</a>
+    <button class="chip" data-share="copy">Copy link</button></div>`;
+}
+
+function wireShare(l) {
+  const box = document.getElementById("share");
+  if (!box) return;
+  const url = `${location.origin}/a/${l.id}`;
+  const text = `${title(l)} on RevBid`;
+  const u = encodeURIComponent(url), t = encodeURIComponent(text);
+  const links = {
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${u}`,
+    reddit: `https://www.reddit.com/submit?url=${u}&title=${t}`,
+    x: `https://twitter.com/intent/tweet?url=${u}&text=${t}`,
+    sms: `sms:?&body=${encodeURIComponent(text + " " + url)}`,
+  };
+  for (const [k, href] of Object.entries(links)) box.querySelector(`[data-share="${k}"]`).href = href;
+  const native = box.querySelector('[data-share="native"]');
+  if (navigator.share) {
+    native.hidden = false;
+    native.onclick = () => navigator.share({ title: text, url }).catch(() => {});
+  }
+  box.querySelector('[data-share="copy"]').onclick = async () => {
+    try { await navigator.clipboard.writeText(url); toast("Link copied. Paste it into Instagram, a group chat, or anywhere."); }
+    catch { prompt("Copy this link:", url); }
+  };
+}
+
+// ---------- results ----------
+async function results(q) {
+  const show = new URLSearchParams(q).get("show") || "sold";
+  const { listings } = await api(`/api/listings?status=${show === "all" ? "ended" : "sold"}&sort=ending&limit=100`);
+  const sold = listings.filter((l) => l.status === "sold");
+  const total = sold.reduce((n, l) => n + l.finalPrice, 0);
+  app.innerHTML = `<div class="wrap" style="max-width:960px">
+    <div class="section-head" style="margin-top:28px"><div><h1>Auction results</h1>
+      <p>What enthusiast cars actually sell for on RevBid. Every result stays public, sold or not.</p></div></div>
+    ${sold.length ? `<div class="fee-box" style="margin-bottom:20px"><div><div class="label">Cars sold</div><b>${sold.length}</b></div>
+      <div><div class="label">Total sales</div><b>${usd(total)}</b></div><div><div class="label">Average sale</div><b>${usd(Math.round(total / sold.length))}</b></div></div>` : ""}
+    <div class="filters"><a class="chip ${show === "sold" ? "on" : ""}" href="#/results">Sold</a><a class="chip ${show === "all" ? "on" : ""}" href="#/results?show=all">Sold and not sold</a></div>
+    <div class="rows">${listings.length ? listings.map((l) => rowcard(l, {
+      below: `<div class="small muted">${esc(l.location)} · ended ${new Date(l.endsAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</div>`,
+      end: l.status === "sold" ? `<div style="text-align:right"><div class="label">Sold for</div><b style="font-size:20px;color:var(--g)">${usd(l.finalPrice)}</b></div>`
+        : `<div style="text-align:right"><div class="label">Bid to</div><b style="font-size:20px">${usd(l.currentBid)}</b></div>`,
+    })).join("") : `<div class="empty">No finished auctions yet. Results show up here as soon as the first cars sell.</div>`}</div></div>`;
 }
 
 // ---------- accounts ----------
@@ -571,10 +643,16 @@ async function account(q) {
       <form class="fields" id="vform"><div class="field"><label>Mobile number</label><input type="tel" name="phone" placeholder="(509) 555-0142" required></div>
       <div class="field hidden" id="code-field"><label>6-digit code</label><input type="text" name="code" inputmode="numeric" maxlength="6"></div>
       <div class="field" style="justify-content:flex-end"><button class="btn primary" id="vbtn">Text me a code</button></div></form><div class="err" id="verr"></div></div>`}
+    ${site.emailOn ? `<label class="check" style="margin:16px 0 0"><input type="checkbox" id="alerts" ${me.emailAlerts ? "checked" : ""}><span>Email me when I'm outbid, when someone asks about my car, and when my auctions end.</span></label>` : ""}
     <div class="tabs">${Object.entries(tabs).map(([k, v]) => `<a class="chip ${tab === k ? "on" : ""}" href="#/account?tab=${k}">${v}</a>`).join("")}</div>
     <div class="rows">${body}</div></div>`;
 
   document.getElementById("logout").onclick = async () => { await api("/api/logout", {}); me = null; renderNav(); go("#/"); };
+  const alerts = document.getElementById("alerts");
+  if (alerts) alerts.onchange = async () => {
+    me = (await api("/api/account/settings", { emailAlerts: alerts.checked })).user;
+    toast(alerts.checked ? "Email alerts on." : "Email alerts off.");
+  };
   const vf = document.getElementById("vform");
   if (vf) vf.onsubmit = async (e) => {
     e.preventDefault();
@@ -605,6 +683,18 @@ async function account(q) {
 }
 
 // ---------- sell ----------
+const PHOTO_GUIDE = [
+  ["Front three-quarter", "Your first photo and the one on the card. Stand off a front corner, wheels turned slightly."],
+  ["Rear three-quarter", "The opposite back corner."],
+  ["Both sides", "Straight on, whole car in frame."],
+  ["Interior", "Dash and front seats from the open door, plus the back seat."],
+  ["Gauges with the engine running", "Shows the mileage and any warning lights."],
+  ["Engine bay", "Wipe it down, don't detail it to hide leaks."],
+  ["Underside", "Frame rails and floors, especially if you answered about rust."],
+  ["Wheels and tires", "Tread depth and any curb rash."],
+  ["Every flaw you listed", "Close-ups of dents, rust, tears and chips. Buyers trust sellers who show these."],
+  ["Paperwork", "Title (cover the numbers), service records, window sticker if you have it."],
+];
 function fee(price) { return Math.min(2500, Math.max(250, Math.round(price * 0.05))); }
 
 function resizePhoto(file) {
@@ -671,7 +761,11 @@ function sell() {
         ${area("issues", "Known issues", "One per line: dents, leaks, warning lights, anything a buyer should know.", "Required. Write \"None known\" if there really are none.", "required")}
         ${area("service", "Service history", "Recent maintenance and records you have.")}
       </div></div>
-      <div class="fieldset"><h3>Photos</h3><p class="small muted">Up to 12. Start with a front three-quarter shot. Include the interior, engine bay, and any damage you listed.</p>
+      <div class="fieldset"><h3>Disclosure checklist</h3><p class="small muted">Buyers see these answers in a box on your listing. "Not sure" is a fine answer. An honest "yes" builds more trust than a surprise later.</p>
+        <div class="disc-form">${DISCLOSURES.map((d) => `<div class="disc-q"><span>${esc(d.q)}?</span><div class="seg" role="radiogroup" aria-label="${esc(d.q)}">
+          ${[["yes", "Yes"], ["no", "No"], ["unsure", "Not sure"]].map(([v, t]) => `<label><input type="radio" name="d-${d.key}" value="${v}"><span>${t}</span></label>`).join("")}</div></div>`).join("")}</div></div>
+      <div class="fieldset"><h3>Photos</h3><p class="small muted">Up to 12. Good photos are the biggest thing you control. Shoot in daylight or open shade, on a clean background, with the car washed. Hold the phone at headlight height.</p>
+        <ol class="shot-list">${PHOTO_GUIDE.map(([shot, tip]) => `<li><b>${shot}</b><span class="small muted">${tip}</span></li>`).join("")}</ol>
         <label class="drop" for="s-photos">📷 Click to add photos<input id="s-photos" type="file" accept="image/*" multiple hidden></label>
         <div class="photo-grid" id="photo-grid"></div></div>
       <div class="fieldset"><h3>Auction setup</h3><div class="fields">
@@ -713,6 +807,10 @@ function sell() {
     if (!form.agree.checked) { err.textContent = "Check the box to confirm the listing is accurate."; return; }
     const body = Object.fromEntries(new FormData(form));
     delete body.agree;
+    body.disclosures = {};
+    for (const d of DISCLOSURES) { body.disclosures[d.key] = body["d-" + d.key]; delete body["d-" + d.key]; }
+    const missing = DISCLOSURES.find((d) => !body.disclosures[d.key]);
+    if (missing) { err.textContent = `Answer every question in the disclosure checklist ("${missing.q}").`; return; }
     body.model = [body.model.trim(), (body.trim || "").trim()].filter(Boolean).join(" ");
     delete body.trim;
     body.photos = photos;
@@ -872,6 +970,7 @@ function legalPage(name, body) {
 const ROUTES = [
   [/^\/$/, () => home()],
   [/^\/browse$/, (m, q) => browse(q)],
+  [/^\/results$/, (m, q) => results(q)],
   [/^\/auction\/(\d+)$/, (m) => auction(m[1])],
   [/^\/sell$/, () => sell()],
   [/^\/how$/, () => how()],
@@ -929,7 +1028,7 @@ window.addEventListener("hashchange", render);
     const r = await api("/api/me");
     me = r.user;
     clockOffset = r.serverTime - Date.now();
-    site = { contactEmail: r.contactEmail, demo: r.demo, verifyMode: r.verifyMode };
+    site = { contactEmail: r.contactEmail, demo: r.demo, verifyMode: r.verifyMode, emailOn: r.emailOn };
     if (!site.demo)
       document.querySelector(".demo-bar").textContent =
         "Early access. RevBid never holds funds or titles: buyers and sellers settle directly.";

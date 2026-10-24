@@ -24,6 +24,8 @@ For the real site, also set `DEMO_DATA` to `off` (no fake cars or bidders, just 
 
 Real text-message verification uses Twilio Verify. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID`. Without them, the demo accepts the code 123456 and the live site (DEMO_DATA off) lets the admin verify people by hand from the Admin page.
 
+Email alerts (outbid, new questions and replies, auction results) go through Resend. Set `RESEND_API_KEY` and `EMAIL_FROM` (for example `RevBid <alerts@yourdomain.com>`). Without them, no emails are sent and the account page hides the email setting. Set `SITE_URL` to the public address (default `https://revbid.onrender.com`) so links in emails and share previews point to the right place.
+
 `npm test` runs the tests. `npm run reset` wipes the demo data so the next start begins fresh.
 
 ## What works

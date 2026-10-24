@@ -44,6 +44,9 @@ const listing = {
   year: 2006, make: "Mazda", model: "MX-5 Miata", category: "performance", location: "Spokane, WA",
   story: "Bought it three years ago and it has been the summer car ever since. Never let me down.",
   issues: "Small tear in the soft top", startingBid: 1000, reserve: 6000, buyNow: "", duration: "1d", photos: [PHOTO],
+  disclosures: {
+    titleInHand: "yes", accident: "no", rust: "unsure", leaks: "no", warningLights: "no", modified: "no", odometer: "yes", records: "yes",
+  },
 };
 
 test("full auction: sign up, verify, list, review, bid, extend, close", async () => {
