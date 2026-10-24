@@ -20,6 +20,8 @@ Open two browser windows signed in as different bidders to watch bids land live 
 
 When the site is online, set an `ADMIN_PASSWORD` environment variable on the host so the admin account doesn't use the shared demo password. It applies when the demo data is first created.
 
+For the real site, also set `DEMO_DATA` to `off` (no fake cars or bidders, just the admin account) and point `REVBID_DATA` at a persistent disk so listings survive restarts.
+
 `npm test` runs the tests. `npm run reset` wipes the demo data so the next start begins fresh.
 
 ## What works

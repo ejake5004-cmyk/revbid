@@ -173,3 +173,13 @@ test("search, filters and comments", async () => {
   assert.ok(c.data.listing.comments.some((x: any) => x.body === "Does it come with winter tires?"));
   assert.equal((await anon(`/api/listings/${hits[0].id}/comments`, { body: "hi" })).status, 401);
 });
+
+test("the real site starts empty except for the admin", async () => {
+  const { openDb } = await import("../src/db.ts");
+  const db = openDb(":memory:");
+  assert.throws(() => seed(db, clock, undefined, false));
+  assert.equal(seed(db, clock, "a-strong-password", false), true);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM listings").get() as { n: number }).n, 0);
+  assert.deepEqual(db.prepare("SELECT username, is_admin FROM users").all().map((u: any) => [u.username, u.is_admin]), [["admin", 1]]);
+  db.close();
+});

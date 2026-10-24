@@ -9,7 +9,9 @@ const dataDir = process.env.REVBID_DATA ?? join(root, "data");
 const port = Number(process.env.PORT ?? 3000);
 
 const app = createApp({ dbFile: join(dataDir, "revbid.db"), uploadsDir: join(dataDir, "uploads") });
-if (seed(app.db))
+if (process.env.DEMO_DATA === "off") {
+  if (seed(app.db)) console.log("Created the admin account. No demo data.");
+} else if (seed(app.db))
   console.log(
     `Added demo data. Demo accounts use the password "${DEMO_PASSWORD}"` +
       (process.env.ADMIN_PASSWORD ? " (admin uses ADMIN_PASSWORD)." : " (try admin or ivy_m3)."),

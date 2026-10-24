@@ -133,9 +133,23 @@ const CARS: Car[] = [
   },
 ];
 
-export function seed(db: DB, now = Date.now(), adminPassword = process.env.ADMIN_PASSWORD) {
+export function seed(
+  db: DB,
+  now = Date.now(),
+  adminPassword = process.env.ADMIN_PASSWORD,
+  demo = process.env.DEMO_DATA !== "off",
+) {
   const n = (db.prepare("SELECT COUNT(*) n FROM users").get() as { n: number }).n;
   if (n > 0) return false;
+
+  // The real site starts with only the admin account, no fake cars or bidders.
+  if (!demo) {
+    if (!adminPassword) throw new Error("Set ADMIN_PASSWORD when DEMO_DATA is off, so there's an admin who can approve listings.");
+    db.prepare("INSERT INTO users (username, email, pass_hash, location, verified, is_admin, created_at) VALUES (?, ?, ?, ?, 1, 1, ?)").run(
+      "admin", "admin@example.com", hashPassword(adminPassword), "Country Homes, WA", now,
+    );
+    return true;
+  }
 
   const hash = hashPassword(DEMO_PASSWORD);
   // On a public copy, set ADMIN_PASSWORD so strangers can't sign in as admin with the demo password.
