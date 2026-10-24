@@ -9,7 +9,11 @@ const dataDir = process.env.REVBID_DATA ?? join(root, "data");
 const port = Number(process.env.PORT ?? 3000);
 
 const app = createApp({ dbFile: join(dataDir, "revbid.db"), uploadsDir: join(dataDir, "uploads") });
-if (seed(app.db)) console.log(`Added demo data. Every demo account's password is "${DEMO_PASSWORD}" (try admin or ivy_m3).`);
+if (seed(app.db))
+  console.log(
+    `Added demo data. Demo accounts use the password "${DEMO_PASSWORD}"` +
+      (process.env.ADMIN_PASSWORD ? " (admin uses ADMIN_PASSWORD)." : " (try admin or ivy_m3)."),
+  );
 
 app.server.listen(port, () => console.log(`RevBid is running at http://localhost:${port}`));
 process.on("SIGINT", () => {

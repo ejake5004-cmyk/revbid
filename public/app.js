@@ -504,7 +504,7 @@ function authPage(q, mode) {
       <button class="btn primary block lg">${signup ? "Create account" : "Sign in"}</button>
     </form>
     <p class="small muted" style="margin-top:14px">${signup ? `Already have an account? <a class="link" href="#/login?next=${encodeURIComponent(next)}">Sign in</a>` : `New to RevBid? <a class="link" href="#/signup?next=${encodeURIComponent(next)}">Create an account</a>`}</p>
-    ${signup ? "" : `<p class="small muted">Demo accounts: <b>ivy_m3</b>, <b>noor_na</b> or <b>admin</b>, password <b>revbid123</b>.</p>`}
+    ${signup ? "" : `<p class="small muted">Demo accounts: <b>ivy_m3</b> or <b>noor_na</b>, password <b>revbid123</b>.</p>`}
   </div></div>`;
   document.getElementById("auth").onsubmit = async (e) => {
     e.preventDefault();

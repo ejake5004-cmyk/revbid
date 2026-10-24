@@ -133,16 +133,18 @@ const CARS: Car[] = [
   },
 ];
 
-export function seed(db: DB, now = Date.now()) {
+export function seed(db: DB, now = Date.now(), adminPassword = process.env.ADMIN_PASSWORD) {
   const n = (db.prepare("SELECT COUNT(*) n FROM users").get() as { n: number }).n;
   if (n > 0) return false;
 
   const hash = hashPassword(DEMO_PASSWORD);
+  // On a public copy, set ADMIN_PASSWORD so strangers can't sign in as admin with the demo password.
+  const adminHash = adminPassword ? hashPassword(adminPassword) : hash;
   const ids = new Map<string, number>();
   for (const [username, location, verified, admin] of PEOPLE) {
     const r = db
       .prepare("INSERT INTO users (username, email, pass_hash, location, verified, is_admin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(username, `${username}@example.com`, hash, location, verified, admin, now - 400 * DAY);
+      .run(username, `${username}@example.com`, admin ? adminHash : hash, location, verified, admin, now - 400 * DAY);
     ids.set(username, Number(r.lastInsertRowid));
   }
   const bidders = PEOPLE.filter(([u, , , a]) => !a).map(([u]) => u);

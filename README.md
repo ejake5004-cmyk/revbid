@@ -18,6 +18,8 @@ Every demo account uses the password `revbid123`:
 
 Open two browser windows signed in as different bidders to watch bids land live in both.
 
+When the site is online, set an `ADMIN_PASSWORD` environment variable on the host so the admin account doesn't use the shared demo password. It applies when the demo data is first created.
+
 `npm test` runs the tests. `npm run reset` wipes the demo data so the next start begins fresh.
 
 ## What works
