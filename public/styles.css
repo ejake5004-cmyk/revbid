@@ -244,3 +244,7 @@ footer .cols a:hover { color: var(--c); }
 .toast.o { border-color: var(--o); }
 @keyframes rise { from { transform: translateY(10px); opacity: 0; } }
 .skeleton { padding: 80px 0; text-align: center; color: var(--m); }
+
+.legal h3 { margin: 28px 0 8px; }
+.legal p, .legal li { color: #d8d5cc; }
+.legal ul.dots li { margin: 6px 0; }

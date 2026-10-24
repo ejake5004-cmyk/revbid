@@ -282,7 +282,12 @@ export function createApp(opts: AppOptions) {
     isAdmin: !!u.is_admin,
   });
 
-  route("GET", "/api/me", (c) => ({ user: c.user ? me(c.user) : null, serverTime: now() }));
+  route("GET", "/api/me", (c) => ({
+    user: c.user ? me(c.user) : null,
+    serverTime: now(),
+    contactEmail: process.env.CONTACT_EMAIL ?? "",
+    demo: process.env.DEMO_DATA !== "off",
+  }));
 
   route("POST", "/api/signup", (c) => {
     const username = str(c.body.username, 30);
@@ -293,11 +298,12 @@ export function createApp(opts: AppOptions) {
       throw new HttpError(400, "Usernames are 3 to 30 letters, numbers or underscores.");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new HttpError(400, "Enter a valid email.");
     if (password.length < 8) throw new HttpError(400, "Passwords need at least 8 characters.");
+    if (c.body.agreeTerms !== true) throw new HttpError(400, "Please agree to the Terms of Service and Privacy Policy.");
     if (db.prepare("SELECT 1 FROM users WHERE username = ? OR email = ?").get(username, email))
       throw new HttpError(409, "That username or email is already taken.");
     const r = db
-      .prepare("INSERT INTO users (username, email, pass_hash, location, created_at) VALUES (?, ?, ?, ?, ?)")
-      .run(username, email, hashPassword(password), location, now());
+      .prepare("INSERT INTO users (username, email, pass_hash, location, created_at, terms_accepted_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(username, email, hashPassword(password), location, now(), now());
     startSession(c.res, Number(r.lastInsertRowid));
     return { user: me(userById(Number(r.lastInsertRowid))!) };
   });

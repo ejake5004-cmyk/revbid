@@ -54,11 +54,12 @@ test("full auction: sign up, verify, list, review, bid, extend, close", async ()
 
   // Accounts
   assert.equal((await seller("/api/signup", { username: "miata_mo", email: "mo@example.com", password: "short" })).status, 400);
-  const s = await seller("/api/signup", { username: "miata_mo", email: "mo@example.com", password: "longenough", location: "Spokane, WA" });
+  const s = await seller("/api/signup", { username: "miata_mo", email: "mo@example.com", password: "longenough", location: "Spokane, WA", agreeTerms: true });
   assert.equal(s.status, 200);
   assert.equal((await seller("/api/me")).data.user.username, "miata_mo");
-  assert.equal((await bidder("/api/signup", { username: "MIATA_MO", email: "x@example.com", password: "longenough" })).status, 409);
-  await bidder("/api/signup", { username: "bid_betty", email: "betty@example.com", password: "longenough" });
+  assert.equal((await bidder("/api/signup", { username: "MIATA_MO", email: "x@example.com", password: "longenough", agreeTerms: true })).status, 409);
+  assert.equal((await bidder("/api/signup", { username: "bid_betty", email: "betty@example.com", password: "longenough" })).status, 400);
+  await bidder("/api/signup", { username: "bid_betty", email: "betty@example.com", password: "longenough", agreeTerms: true });
   assert.equal((await rival("/api/login", { login: "ivy_m3", password: "wrong" })).status, 401);
   await rival("/api/login", { login: "ivy_m3", password: "revbid123" });
   await admin("/api/login", { login: "admin", password: "revbid123" });

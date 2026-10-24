@@ -1,8 +1,11 @@
 // RevBid front end: a small hash-routed single page app with no build step.
+import { termsHtml, privacyHtml, LEGAL_UPDATED } from "./legal.js";
+
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 let me = null;
 let clockOffset = 0; // server time minus browser time
+let site = { contactEmail: "", demo: true };
 let pageEvent = null; // live event handler for the current page
 let pageToken = 0;
 
@@ -410,7 +413,7 @@ async function auction(id) {
         <div><div class="label">${live ? "Ends" : "Ended"}</div><div class="small" style="margin-top:6px">${L.endsAt ? new Date(L.endsAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "—"}${L.extensionsUsed ? `<br><span class="muted">Extended ${L.extensionsUsed}×</span>` : ""}</div></div></div>`}
       ${action}
       ${L.status !== "pending" && L.status !== "rejected" ? `<button class="btn block" id="watch">${L.watching ? "♥ Watching" : "♡ Watch"}</button>` : ""}
-      <div class="small muted" style="text-align:center">Demo auction. Bids aren't binding while RevBid is in preview.</div>`;
+      ${site.demo ? `<div class="small muted" style="text-align:center">Demo auction. Bids aren't binding while RevBid is in preview.</div>` : `<div class="small muted" style="text-align:center">Bids are binding. <a class="link" href="#/terms">Terms</a></div>`}`;
 
     const q = (s) => box.querySelector(s);
     const form = q("#bid-form");
@@ -501,15 +504,17 @@ function authPage(q, mode) {
         <div class="field"><label>City and state</label><input type="text" name="location" placeholder="Spokane, WA"></div>`
       : `<div class="field"><label>Username or email</label><input type="text" name="login" autocomplete="username" required></div>`}
       <div class="field"><label>Password</label><input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" required ${signup ? 'minlength="8"' : ""}></div>
+      ${signup ? `<label class="check" style="margin-top:4px"><input type="checkbox" name="agreeTerms" required><span>I'm 18 or older and agree to the <a class="link" href="#/terms" target="_blank">Terms of Service</a> and <a class="link" href="#/privacy" target="_blank">Privacy Policy</a>, including that bids are binding.</span></label>` : ""}
       <div class="err" id="auth-err"></div>
       <button class="btn primary block lg">${signup ? "Create account" : "Sign in"}</button>
     </form>
     <p class="small muted" style="margin-top:14px">${signup ? `Already have an account? <a class="link" href="#/login?next=${encodeURIComponent(next)}">Sign in</a>` : `New to RevBid? <a class="link" href="#/signup?next=${encodeURIComponent(next)}">Create an account</a>`}</p>
-    ${signup ? "" : `<p class="small muted">Demo accounts: <b>ivy_m3</b> or <b>noor_na</b>, password <b>revbid123</b>.</p>`}
+    ${signup || !site.demo ? "" : `<p class="small muted">Demo accounts: <b>ivy_m3</b> or <b>noor_na</b>, password <b>revbid123</b>.</p>`}
   </div></div>`;
   document.getElementById("auth").onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(e.target));
+    if (signup) body.agreeTerms = e.target.agreeTerms.checked;
     try {
       me = (await api(signup ? "/api/signup" : "/api/login", body)).user;
       renderNav();
@@ -661,7 +666,7 @@ function sell() {
         ${select("duration", "Auction length", [["7d", "7 days"], ["3d", "3 days"], ["1d", "1 day"], ["10m", "10 minutes (demo)"]])}
       </div>
         <div class="fee-box" id="fee-box"></div>
-        <label class="check"><input type="checkbox" name="agree" required> I own this car or am authorized to sell it, the description is accurate, and I'll complete the sale with the winning bidder.</label>
+        <label class="check"><input type="checkbox" name="agree" required><span>I own this car or am authorized to sell it, the description is accurate and discloses every known issue, and I'll sell to the winning bidder if the reserve is met. I agree to the <a class="link" href="#/terms" target="_blank">Terms of Service</a>, including the 5% seller fee.</span></label>
       </div>
       <div class="err" id="sell-err" style="margin-top:14px"></div>
       <div style="display:flex;gap:10px;margin-top:18px"><button class="btn primary lg" id="sell-btn">Submit for review</button><a class="btn lg" href="#/">Cancel</a></div>
@@ -759,6 +764,11 @@ function how() {
   </div>`;
 }
 
+function legalPage(name, body) {
+  app.innerHTML = `<div class="wrap legal" style="max-width:820px"><h1 style="margin-top:32px">${name}</h1>
+    <p class="muted small">Last updated ${LEGAL_UPDATED}</p>${body(esc(site.contactEmail))}</div>`;
+}
+
 // ---------- router ----------
 const ROUTES = [
   [/^\/$/, () => home()],
@@ -766,6 +776,8 @@ const ROUTES = [
   [/^\/auction\/(\d+)$/, (m) => auction(m[1])],
   [/^\/sell$/, () => sell()],
   [/^\/how$/, () => how()],
+  [/^\/terms$/, () => legalPage("Terms of Service", termsHtml)],
+  [/^\/privacy$/, () => legalPage("Privacy Policy", privacyHtml)],
   [/^\/login$/, (m, q) => authPage(q, "login")],
   [/^\/signup$/, (m, q) => authPage(q, "signup")],
   [/^\/account$/, (m, q) => account(q)],
@@ -818,6 +830,10 @@ window.addEventListener("hashchange", render);
     const r = await api("/api/me");
     me = r.user;
     clockOffset = r.serverTime - Date.now();
+    site = { contactEmail: r.contactEmail, demo: r.demo };
+    if (!site.demo)
+      document.querySelector(".demo-bar").textContent =
+        "Early access. RevBid never holds funds or titles: buyers and sellers settle directly.";
   } catch {}
   renderNav();
   connect();

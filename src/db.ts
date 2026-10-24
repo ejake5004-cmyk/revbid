@@ -97,6 +97,9 @@ export function openDb(file: string): DB {
       PRIMARY KEY (user_id, listing_id)
     );
   `);
+  // Columns added after launch. CREATE TABLE IF NOT EXISTS leaves an existing table alone, so add them here.
+  const userCols = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
+  if (!userCols.includes("terms_accepted_at")) db.exec("ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER");
   return db;
 }
 
