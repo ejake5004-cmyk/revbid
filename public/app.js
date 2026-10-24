@@ -187,11 +187,11 @@ async function home() {
   app.innerHTML = `<div class="wrap">
     ${f ? `<a class="hero" href="#/auction/${f.id}">
       <div class="art">${pic(f, 0, true)}</div>
-      <div class="tag-line"><h1>Auctions for cars worth looking at.</h1><p class="hero-sub">JDM, modified, project and classic cars. Every car is reviewed by a real person, and every story is told honestly.</p>
+      <div class="tag-line"><h1>Honest auctions for enthusiast cars.</h1><p class="hero-sub">JDM, modified, project and classic cars. Every car is reviewed by a real person, and every story is told honestly.</p>
         <div class="row"><span class="btn primary" onclick="event.preventDefault();location.hash='#/browse'">Browse auctions</span>
         <span class="btn" onclick="event.preventDefault();location.hash='#/sell'">Sell a car</span></div></div>
       <div class="bottom" data-card-hero="${f.id}">${heroBottom(f)}</div>
-    </a>` : `<div class="cta"><h1>Auctions for cars worth looking at.</h1></div>`}
+    </a>` : `<div class="cta"><h1>Honest auctions for enthusiast cars.</h1></div>`}
   </div>
   <div class="ticker"><div class="track" id="ticker">${tickerItems(recent.bids)}</div></div>
   <div class="wrap">
@@ -200,7 +200,7 @@ async function home() {
       <div class="cats">${cats.categories.map((c) => `<a class="cat" href="#/browse?category=${c.id}"><span class="ico">${CATS[c.id].ico}</span><b>${CATS[c.id].name}</b><span class="small muted">${CATS[c.id].blurb}<br>${c.live} live</span></a>`).join("")}</div></section>
     <section class="section"><div class="section-head"><div><h2>Just listed</h2><p>Fresh this week.</p></div><a class="link" href="#/browse?sort=newest">See all ›</a></div>${grid(fresh.listings)}</section>
     <section class="section"><div class="section-head"><div><h2>No reserve</h2><p>They sell to the high bidder, whatever that is.</p></div><a class="link" href="#/browse?noReserve=1">See all ›</a></div>${grid(noRes.listings, "No no-reserve auctions live right now.")}</section>
-    <div class="cta"><div><h2>Got something worth looking at?</h2><p>We'll help you present it right, with guidance on photos and the write-up, and put it in front of serious enthusiast buyers nationwide. Free to list. One simple fee of 5% only if it sells, and nothing if it doesn't.</p></div>
+    <div class="cta"><div><h2>Got something worth bidding on?</h2><p>We'll help you present it right, with guidance on photos and the write-up, and put it in front of serious enthusiast buyers nationwide. Free to list. One simple fee of 5% only if it sells, and nothing if it doesn't.</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" href="#/sell">Sell a car</a><a class="btn lg" href="#/how">How it works</a></div></div>
   </div>`;
   pageEvent = (ev) => {

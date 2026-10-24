@@ -1,6 +1,6 @@
 # RevBid
 
-A working local version of RevBid: online auctions for enthusiast cars, built from the client preview mockup.
+A working version of RevBid: honest online auctions for enthusiast cars, built from the client preview mockup.
 
 ## Run it
 
