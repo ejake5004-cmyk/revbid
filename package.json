@@ -1,0 +1,13 @@
+{
+  "name": "revbid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "reset": "rm -rf data && echo 'Demo data cleared. It comes back on the next npm start.'"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

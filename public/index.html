@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RevBid</title>
+  <meta name="description" content="Online auctions for cars worth looking at.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="demo-bar">Local demo. Bids aren't binding and no money moves. RevBid never holds funds or titles.</div>
+  <header class="top">
+    <div class="wrap">
+      <a href="#/" class="logo" aria-label="RevBid home">
+        <svg viewBox="0 0 32 32" fill="none"><path d="M5 22a11 11 0 1 1 22 0" stroke="#F0EDE4" stroke-width="3" stroke-linecap="round"/><path d="M16 22l7-8" stroke="#F47724" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="22" r="2.5" fill="#F47724"/></svg>
+        RevBid
+      </a>
+      <form class="search" id="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" name="q" placeholder="Search by make, model, or keyword" aria-label="Search">
+      </form>
+      <nav class="nav" id="nav"></nav>
+    </div>
+  </header>
+  <main id="app"><div class="skeleton">Loading…</div></main>
+  <footer>
+    <div class="wrap">
+      <div style="max-width:320px">
+        <div class="logo" style="font-size:22px;color:var(--c)">RevBid</div>
+        <p>Online auctions for cars worth looking at: modified, project, performance, classic, and the odd ones in between.</p>
+      </div>
+      <div class="cols">
+        <div><b>Browse</b><a href="#/browse">All auctions</a><a href="#/browse?sort=ending">Ending soon</a><a href="#/browse?sort=newest">Just listed</a><a href="#/browse?status=ended">Results</a></div>
+        <div><b>Sell</b><a href="#/sell">Sell a car</a><a href="#/how">How auctions work</a><a href="#/how">Seller fees</a></div>
+        <div><b>RevBid</b><a href="#/how">How it works</a><a href="#/account">Your account</a></div>
+      </div>
+    </div>
+  </footer>
+  <div class="toast-wrap" id="toasts"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
