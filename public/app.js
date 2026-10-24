@@ -5,7 +5,7 @@ const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 let me = null;
 let clockOffset = 0; // server time minus browser time
-let site = { contactEmail: "", demo: true };
+let site = { contactEmail: "", demo: true, verifyMode: "demo" };
 let pageEvent = null; // live event handler for the current page
 let pageToken = 0;
 
@@ -160,7 +160,7 @@ function renderNav() {
   nav.innerHTML = `
     <a href="#/browse" class="hide-sm">Auctions</a>
     <a href="#/browse?sort=ending" class="hide-sm">Ending soon</a>
-    ${me?.isAdmin ? `<a href="#/admin" class="hide-sm">Review queue</a>` : ""}
+    ${me?.isAdmin ? `<a href="#/admin" class="hide-sm">Admin</a>` : ""}
     <a href="#/sell" class="btn primary" style="padding:7px 14px">Sell a car</a>
     ${me
       ? `<a href="#/account" class="who" title="Your account"><span class="avatar">${esc(me.username.slice(0, 2))}</span><span class="hide-sm">${esc(me.username)}</span></a>`
@@ -563,8 +563,10 @@ async function account(q) {
       <div><h2>${esc(me.username)}</h2><div class="small muted">${esc(me.email)}${me.location ? " · " + esc(me.location) : ""}</div></div></div>
       <div style="display:flex;gap:8px;align-items:center">${me.verified ? `<span class="pill g">✓ Verified bidder</span>` : `<span class="pill y">Not verified</span>`}<button class="btn" id="logout">Sign out</button></div>
     </div>
-    ${me.verified ? "" : `<div class="fieldset" id="verify"><h3>Verify your account to bid</h3>
-      <p class="small muted">Every bidder on RevBid has a checked phone number. In the real site this also puts a card on file through Stripe. Here the code is always <b>${DEMO_CODE}</b>.</p>
+    ${me.verified ? "" : site.verifyMode === "manual" ? `<div class="fieldset" id="verify"><h3>Verification pending</h3>
+      <p class="small muted">Every bidder on RevBid is verified before bidding. During early access, RevBid verifies new accounts by hand, usually within a day.${site.contactEmail ? ` Questions? Email <a class="link" href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a>.` : ""}</p></div>`
+    : `<div class="fieldset" id="verify"><h3>Verify your account to bid</h3>
+      <p class="small muted">Every bidder on RevBid has a checked mobile number, and each number can be used for one account. ${site.verifyMode === "demo" ? `In this demo the code is always <b>${DEMO_CODE}</b>.` : "We'll text you a 6-digit code. Message and data rates may apply."}</p>
       <form class="fields" id="vform"><div class="field"><label>Mobile number</label><input type="tel" name="phone" placeholder="(509) 555-0142" required></div>
       <div class="field hidden" id="code-field"><label>6-digit code</label><input type="text" name="code" inputmode="numeric" maxlength="6"></div>
       <div class="field" style="justify-content:flex-end"><button class="btn primary" id="vbtn">Text me a code</button></div></form><div class="err" id="verr"></div></div>`}
@@ -576,10 +578,21 @@ async function account(q) {
   if (vf) vf.onsubmit = async (e) => {
     e.preventDefault();
     const codeField = document.getElementById("code-field");
+    const btn = document.getElementById("vbtn");
+    const verr = document.getElementById("verr");
+    verr.textContent = "";
     if (codeField.classList.contains("hidden")) {
-      codeField.classList.remove("hidden");
-      document.getElementById("vbtn").textContent = "Verify";
-      toast(`Demo text message: your RevBid code is ${DEMO_CODE}`, "o");
+      btn.disabled = true;
+      try {
+        await api("/api/verify/start", { phone: vf.phone.value });
+        codeField.classList.remove("hidden");
+        btn.textContent = "Verify";
+        vf.code.focus();
+        verr.innerHTML = `<span class="muted">Code sent. <button type="button" class="link small" id="resend">Use a different number or resend</button></span>`;
+        document.getElementById("resend").onclick = () => { codeField.classList.add("hidden"); btn.textContent = "Text me a code"; verr.textContent = ""; };
+        toast(site.verifyMode === "demo" ? `Demo text message: your RevBid code is ${DEMO_CODE}` : "Code sent. Check your texts.", "o");
+      } catch (err) { verr.textContent = err.message; }
+      btn.disabled = false;
       return;
     }
     try {
@@ -717,7 +730,8 @@ function sell() {
 // ---------- admin review queue ----------
 async function admin() {
   if (!me?.isAdmin) { app.innerHTML = `<div class="wrap"><div class="empty" style="margin-top:40px">Only RevBid staff can see the review queue.</div></div>`; return; }
-  const { listings } = await api("/api/admin/queue");
+  const [{ listings }, { users }] = await Promise.all([api("/api/admin/queue"), api("/api/admin/users")]);
+  const unverified = users.filter((u) => !u.verified);
   app.innerHTML = `<div class="wrap" style="max-width:900px"><h1 style="margin-top:28px">Review queue</h1>
     <p class="muted">Check each listing for honesty and completeness. Approving starts the auction clock.</p>
     <div class="rows">${listings.length ? listings.map((l) => `<div class="panel">
@@ -727,7 +741,13 @@ async function admin() {
         <div class="small muted" style="margin-top:6px">Issues: ${esc(lines(l.issues).join("; "))}</div></div></div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" data-approve="${l.id}">Approve and start</button>
         <input type="text" placeholder="Reason, if rejecting" data-reason="${l.id}" style="flex:1;min-width:200px"><button class="btn danger" data-reject="${l.id}">Reject</button></div>
-    </div>`).join("") : `<div class="empty">The queue is empty.</div>`}</div></div>`;
+    </div>`).join("") : `<div class="empty">The queue is empty.</div>`}</div>
+    <h2 style="margin-top:40px">Unverified accounts (${unverified.length})</h2>
+    <p class="muted">${site.verifyMode === "manual" ? "Text verification isn't switched on, so verify people you trust here." : "People normally verify themselves by text. Verify someone here only if they can't."} Verified accounts can bid.</p>
+    <div class="rows">${unverified.length ? unverified.map((u) => `<div class="rowcard" style="grid-template-columns:1fr auto">
+      <div><b>${esc(u.username)}</b><div class="small muted">${esc(u.email)}${u.location ? " · " + esc(u.location) : ""} · joined ${new Date(u.createdAt).toLocaleDateString()}</div></div>
+      <button class="btn" data-verify="${u.id}">Verify</button></div>`).join("") : `<div class="empty">Everyone is verified.</div>`}</div></div>`;
+  document.querySelectorAll("[data-verify]").forEach((b) => (b.onclick = async () => { await api(`/api/admin/users/${b.dataset.verify}/verify`, {}); toast("Verified. They can bid now."); render(); }));
   document.querySelectorAll("[data-approve]").forEach((b) => (b.onclick = async () => { await api(`/api/admin/listings/${b.dataset.approve}/approve`, {}); toast("Approved. The auction is live."); render(); }));
   document.querySelectorAll("[data-reject]").forEach((b) => (b.onclick = async () => {
     await api(`/api/admin/listings/${b.dataset.reject}/reject`, { reason: document.querySelector(`[data-reason="${b.dataset.reject}"]`).value });
@@ -830,7 +850,7 @@ window.addEventListener("hashchange", render);
     const r = await api("/api/me");
     me = r.user;
     clockOffset = r.serverTime - Date.now();
-    site = { contactEmail: r.contactEmail, demo: r.demo };
+    site = { contactEmail: r.contactEmail, demo: r.demo, verifyMode: r.verifyMode };
     if (!site.demo)
       document.querySelector(".demo-bar").textContent =
         "Early access. RevBid never holds funds or titles: buyers and sellers settle directly.";

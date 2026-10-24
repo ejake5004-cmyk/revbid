@@ -22,6 +22,8 @@ When the site is online, set an `ADMIN_PASSWORD` environment variable on the hos
 
 For the real site, also set `DEMO_DATA` to `off` (no fake cars or bidders, just the admin account) and point `REVBID_DATA` at a persistent disk so listings survive restarts.
 
+Real text-message verification uses Twilio Verify. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID`. Without them, the demo accepts the code 123456 and the live site (DEMO_DATA off) lets the admin verify people by hand from the Admin page.
+
 `npm test` runs the tests. `npm run reset` wipes the demo data so the next start begins fresh.
 
 ## What works
@@ -44,6 +46,7 @@ Real payments (Stripe), real phone checks, email notifications, legal terms, and
 - `src/db.ts`: SQLite storage using Node's built-in `node:sqlite`. Data lives in `data/`.
 - `src/seed.ts`: demo data.
 - `public/`: the website (plain HTML, CSS and JavaScript, no build step).
-- `test/`: 14 engine tests and 4 end-to-end API tests.
+- `src/phone.ts`: phone verification (Twilio Verify, demo code, or manual).
+- `test/`: engine, API and phone verification tests.
 
 Moving to the planned Next.js + Supabase + Stripe stack later is mostly a matter of porting `app.ts` routes; the engine moves as is.

@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "no
 import { join, extname, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb, tx, loadAuction, type DB, type ListingRow } from "./db.ts";
+import { normalizeUsPhone, verifierFromEnv, type PhoneVerifier } from "./phone.ts";
 import {
   placeBid,
   closeAuction,
@@ -73,6 +74,8 @@ export interface AppOptions {
   uploadsDir: string;
   now?: () => number;
   closeEveryMs?: number;
+  // null means no automatic verification: the admin verifies people by hand.
+  phoneVerifier?: PhoneVerifier | null;
 }
 
 export function hashPassword(pw: string): string {
@@ -89,6 +92,8 @@ function checkPassword(pw: string, stored: string): boolean {
 export function createApp(opts: AppOptions) {
   const db: DB = openDb(opts.dbFile);
   const now = opts.now ?? Date.now;
+  const verifier = opts.phoneVerifier !== undefined ? opts.phoneVerifier : verifierFromEnv(process.env);
+  const codeSends = new Map<number, number[]>(); // user id → recent send times, to cap texts per hour
   mkdirSync(opts.uploadsDir, { recursive: true });
 
   // ---- live events (server-sent events) ----
@@ -286,6 +291,7 @@ export function createApp(opts: AppOptions) {
     user: c.user ? me(c.user) : null,
     serverTime: now(),
     contactEmail: process.env.CONTACT_EMAIL ?? "",
+    verifyMode: verifier?.mode ?? "manual",
     demo: process.env.DEMO_DATA !== "off",
   }));
 
@@ -326,14 +332,62 @@ export function createApp(opts: AppOptions) {
     return { ok: true };
   });
 
-  // Stand-in for the real phone and card check (Stripe Identity / SetupIntent in the build plan).
-  route("POST", "/api/verify", (c) => {
+  // Phone verification: text a code, then check it. One account per phone number.
+  function phoneFor(c: Ctx) {
     const u = requireUser(c);
-    const phone = str(c.body.phone, 30).replace(/[^\d+]/g, "");
-    if (phone.length < 10) throw new HttpError(400, "Enter a phone number with area code.");
-    if (str(c.body.code, 10) !== "123456") throw new HttpError(400, "That code is wrong. In this demo the code is 123456.");
-    db.prepare("UPDATE users SET verified = 1 WHERE id = ?").run(u.id);
+    if (u.verified) throw new HttpError(409, "Your account is already verified.");
+    if (!verifier) throw new HttpError(503, "Text verification isn't switched on yet. RevBid will verify your account by hand.");
+    const phone = normalizeUsPhone(str(c.body.phone, 30));
+    if (!phone) throw new HttpError(400, "Enter a US mobile number with area code.");
+    const taken = db.prepare("SELECT id FROM users WHERE phone = ? AND id != ?").get(phone, u.id);
+    if (taken) throw new HttpError(409, "That phone number is already used by another account.");
+    return { u, phone };
+  }
+
+  route("POST", "/api/verify/start", async (c) => {
+    const { u, phone } = phoneFor(c);
+    const recent = (codeSends.get(u.id) ?? []).filter((t) => t > now() - 60 * 60 * 1000);
+    if (recent.length >= 5) throw new HttpError(429, "That's a lot of codes. Wait an hour and try again.");
+    codeSends.set(u.id, [...recent, now()]);
+    try {
+      await verifier!.start(phone);
+    } catch (err) {
+      throw new HttpError(502, (err as Error).message === "rate_limited"
+        ? "Too many attempts for that number. Wait a few minutes and try again."
+        : "We couldn't text that number. Check it and try again.");
+    }
+    return { sent: true, mode: verifier!.mode };
+  });
+
+  route("POST", "/api/verify", async (c) => {
+    const { u, phone } = phoneFor(c);
+    const code = str(c.body.code, 10).replace(/\D/g, "");
+    if (code.length < 4) throw new HttpError(400, "Enter the code we texted you.");
+    let ok = false;
+    try {
+      ok = await verifier!.check(phone, code);
+    } catch {
+      throw new HttpError(502, "We couldn't check that code right now. Try again in a minute.");
+    }
+    if (!ok) throw new HttpError(400, "That code is wrong or expired. Check the text, or send a new code.");
+    db.prepare("UPDATE users SET verified = 1, phone = ? WHERE id = ?").run(phone, u.id);
     return { user: me(userById(u.id)!) };
+  });
+
+  // Until texts are switched on (and for edge cases after), the admin can verify people they know.
+  route("GET", "/api/admin/users", (c) => {
+    requireAdmin(c);
+    const users = db
+      .prepare("SELECT id, username, email, location, verified, created_at createdAt FROM users WHERE is_admin = 0 ORDER BY verified, id DESC LIMIT 200")
+      .all();
+    return { users };
+  });
+
+  route("POST", "/api/admin/users/:id/verify", (c) => {
+    requireAdmin(c);
+    const r = db.prepare("UPDATE users SET verified = ? WHERE id = ? AND is_admin = 0").run(c.body.verified === false ? 0 : 1, Number(c.params[0]));
+    if (!r.changes) throw new HttpError(404, "No such user.");
+    return { ok: true };
   });
 
   route("GET", "/api/listings", (c) => {
@@ -660,7 +714,7 @@ export function createApp(opts: AppOptions) {
           if (method === "POST" && !String(req.headers["content-type"]).startsWith("application/json"))
             throw new HttpError(415, "Send JSON.");
           const body = method === "POST" ? await readBody(req) : {};
-          const out = handler({ req, res, url, params: m.slice(1), user: currentUser(req), body });
+          const out = await handler({ req, res, url, params: m.slice(1), user: currentUser(req), body });
           return json(res, 200, out);
         }
         throw new HttpError(404, "Not found.");

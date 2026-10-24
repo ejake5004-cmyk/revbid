@@ -100,6 +100,9 @@ export function openDb(file: string): DB {
   // Columns added after launch. CREATE TABLE IF NOT EXISTS leaves an existing table alone, so add them here.
   const userCols = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
   if (!userCols.includes("terms_accepted_at")) db.exec("ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER");
+  if (!userCols.includes("phone")) db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+  // One verified account per phone number.
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_phone ON users(phone) WHERE phone IS NOT NULL");
   return db;
 }
 
