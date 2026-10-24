@@ -1,5 +1,6 @@
 // RevBid front end: a small hash-routed single page app with no build step.
 import { termsHtml, privacyHtml, LEGAL_UPDATED } from "./legal.js";
+import { MAKES, MODELS, rank } from "./cars.js";
 
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
@@ -644,8 +645,9 @@ function sell() {
     <form id="sell" novalidate>
       <div class="fieldset"><h3>The car</h3><div class="fields">
         ${field("year", "Year", 'type="number" min="1900" max="2027" required placeholder="2013"')}
-        ${field("make", "Make", 'type="text" required placeholder="Toyota"')}
-        ${field("model", "Model and trim", 'type="text" required placeholder="Camry LE"')}
+        ${field("make", "Make", 'type="text" required placeholder="Start typing, e.g. Subaru" autocomplete="off"', "", "combo")}
+        ${field("model", "Model", 'type="text" required placeholder="Pick a make first" autocomplete="off"', "", "combo")}
+        ${field("trim", "Trim (optional)", 'type="text" maxlength="30" placeholder="e.g. Limited, Si, GT"')}
         ${select("category", "Category", Object.entries(CATS).map(([k, v]) => [k, v.name]))}
         ${field("subtitle", "One-line summary", 'type="text" maxlength="120" placeholder="Reliable commuter, heat and A/C work"', "", "full")}
         ${field("location", "Where is it?", `type="text" required value="${esc(me.location)}" placeholder="Cheney, WA"`)}
@@ -686,6 +688,7 @@ function sell() {
     </form></div></div>`;
 
   const form = document.getElementById("sell");
+  setupCarPickers(form);
   const feeBox = () => {
     const at = Number(form.reserve.value) || Number(form.startingBid.value) || 0;
     document.getElementById("fee-box").innerHTML = `<div><div class="label">If it sells at</div><b>${usd(at)}</b></div>
@@ -710,6 +713,8 @@ function sell() {
     if (!form.agree.checked) { err.textContent = "Check the box to confirm the listing is accurate."; return; }
     const body = Object.fromEntries(new FormData(form));
     delete body.agree;
+    body.model = [body.model.trim(), (body.trim || "").trim()].filter(Boolean).join(" ");
+    delete body.trim;
     body.photos = photos;
     const btn = document.getElementById("sell-btn");
     btn.disabled = true;
@@ -725,6 +730,80 @@ function sell() {
       btn.textContent = "Submit for review";
     }
   };
+}
+
+// Type-ahead dropdown: best match first, arrow keys and Enter to pick, and any typed value still allowed.
+function combobox(input, getOptions, onPick = () => {}) {
+  const list = document.createElement("ul");
+  list.className = "combo-list hidden";
+  list.setAttribute("role", "listbox");
+  input.after(list);
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  let items = [];
+  let active = 0;
+  const close = () => { list.classList.add("hidden"); input.setAttribute("aria-expanded", "false"); };
+  const pick = (value) => { input.value = value; close(); onPick(value); };
+  function open() {
+    items = rank(getOptions(), input.value, 10);
+    active = 0;
+    if (!items.length) return close();
+    list.innerHTML = items.map((it, i) => `<li role="option" data-i="${i}" class="${i === active ? "on" : ""}">${esc(it)}</li>`).join("");
+    list.classList.remove("hidden");
+    input.setAttribute("aria-expanded", "true");
+  }
+  const highlight = () => list.querySelectorAll("li").forEach((li, i) => li.classList.toggle("on", i === active));
+  input.addEventListener("input", open);
+  input.addEventListener("focus", open);
+  input.addEventListener("blur", () => setTimeout(() => {
+    close();
+    // Fix the capitalization of a typed value that matches an option, e.g. "subaru" → "Subaru".
+    const exact = getOptions().find((o) => o.toLowerCase() === input.value.trim().toLowerCase());
+    if (exact && exact !== input.value) input.value = exact;
+    onPick(input.value);
+  }, 150));
+  input.addEventListener("keydown", (e) => {
+    if (list.classList.contains("hidden")) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(active + 1, items.length - 1); highlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(active - 1, 0); highlight(); }
+    else if (e.key === "Enter") { e.preventDefault(); pick(items[active]); }
+    else if (e.key === "Escape") close();
+  });
+  list.addEventListener("mousedown", (e) => {
+    const li = e.target.closest("li");
+    if (li) { e.preventDefault(); pick(items[Number(li.dataset.i)]); }
+  });
+  return { refresh: () => { if (document.activeElement === input) open(); } };
+}
+
+function setupCarPickers(form) {
+  let fetched = []; // full model list for the current make and year, from NHTSA
+  let lastKey = "";
+  const canonMake = () => MAKES.find((m) => m.toLowerCase() === form.make.value.trim().toLowerCase()) || form.make.value.trim();
+  const modelOptions = () => {
+    const curated = MODELS[canonMake()] || [];
+    const seen = new Set(curated.map((m) => m.toLowerCase()));
+    return curated.concat(fetched.filter((m) => !seen.has(m.toLowerCase())));
+  };
+  const models = combobox(form.model, modelOptions);
+  let prevMake = "";
+  async function loadModels() {
+    const make = canonMake();
+    // A new make clears a model that belongs to the old one.
+    if (prevMake && make !== prevMake && form.model.value && !(MODELS[make] || []).includes(form.model.value)) form.model.value = "";
+    prevMake = make;
+    form.model.placeholder = make ? `Start typing, e.g. ${(MODELS[make] || ["model"])[0]}` : "Pick a make first";
+    const key = `${make}|${form.year.value}`;
+    if (!make || make === "Other" || key === lastKey) return;
+    lastKey = key;
+    fetched = [];
+    try {
+      const r = await api(`/api/models?make=${encodeURIComponent(make)}&year=${encodeURIComponent(form.year.value)}`);
+      if (lastKey === key) { fetched = r.models; models.refresh(); }
+    } catch {}
+  }
+  combobox(form.make, () => MAKES, loadModels);
+  form.year.addEventListener("change", loadModels);
 }
 
 // ---------- admin review queue ----------

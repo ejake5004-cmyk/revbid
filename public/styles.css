@@ -248,3 +248,8 @@ footer .cols a:hover { color: var(--c); }
 .legal h3 { margin: 28px 0 8px; }
 .legal p, .legal li { color: #d8d5cc; }
 .legal ul.dots li { margin: 6px 0; }
+
+.field.combo { position: relative; }
+.combo-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 30; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--s2); border: 1px solid var(--b); border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); max-height: 280px; overflow-y: auto; }
+.combo-list li { padding: 9px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.combo-list li.on, .combo-list li:hover { background: rgba(244, 119, 36, 0.18); }

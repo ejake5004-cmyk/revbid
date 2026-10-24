@@ -429,6 +429,30 @@ export function createApp(opts: AppOptions) {
     return { categories: CATEGORIES.map((c) => ({ id: c, live: counts.find((x) => x.category === c)?.n ?? 0 })) };
   });
 
+  // Model names for the sell form, from NHTSA's free vehicle database (vPIC). Cached, and empty if it's unreachable.
+  const modelCache = new Map<string, { at: number; models: string[] }>();
+  route("GET", "/api/models", async (c) => {
+    const make = str(c.url.searchParams.get("make"), 40);
+    const year = Number(c.url.searchParams.get("year"));
+    if (!make) return { models: [] };
+    const okYear = Number.isInteger(year) && year >= 1950 && year <= new Date(now()).getFullYear() + 1;
+    const key = `${make.toLowerCase()}|${okYear ? year : ""}`;
+    const hit = modelCache.get(key);
+    if (hit && now() - hit.at < 7 * 24 * 60 * 60 * 1000) return { models: hit.models };
+    const url = okYear
+      ? `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`
+      : `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMake/${encodeURIComponent(make)}?format=json`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const data = (await res.json()) as { Results?: { Model_Name?: string }[] };
+      const models = [...new Set((data.Results ?? []).map((r) => String(r.Model_Name ?? "").trim()).filter(Boolean))].sort();
+      modelCache.set(key, { at: now(), models });
+      return { models };
+    } catch {
+      return { models: [] };
+    }
+  });
+
   route("GET", "/api/recent-bids", () => {
     const rows = db
       .prepare(
